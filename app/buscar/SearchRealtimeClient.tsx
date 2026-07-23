@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Search } from "lucide-react";
 import { useMemo } from "react";
 
-import { Suspense } from "react";
+
 
 type Product = {
     id: string;
@@ -37,7 +37,7 @@ export default function SearchRealtimeClient({
     const isSingleResult = filteredProducts.length === 1;
 
     return (
-        <Suspense fallback={null}>
+        
         <main className="max-w-7xl mx-auto px-6 mt-12 mb-20 min-h-[400px]">
             <div className="mb-6">
                 <h1 className="text-2xl font-extrabold flex items-center gap-2">
@@ -117,6 +117,6 @@ export default function SearchRealtimeClient({
                 </div>
             )}
         </main>
-        </Suspense>
+        
     );
 }

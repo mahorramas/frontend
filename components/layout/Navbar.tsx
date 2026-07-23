@@ -2,7 +2,6 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
-import { Suspense } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Search, User, ShoppingCart, MapPin, Menu, X } from "lucide-react";
 import {
@@ -184,7 +183,7 @@ export default function Navbar() {
     const isPostalModalVisible = postalModalOpen || shouldAutoOpenPostalModal;
 
     return (
-        <Suspense fallback={null}>
+    
         <nav className="bg-[#F4F4F5] border-b border-[#E4E4E7] sticky top-0 z-50">
             <div className="max-w-7xl mx-auto px-4 md:px-6 py-3 flex flex-col gap-3">
                 <div className="flex flex-wrap items-center justify-between gap-4">
@@ -416,6 +415,6 @@ export default function Navbar() {
                 </div>
             )}
         </nav>
-        </Suspense>
+        
     );
 }
