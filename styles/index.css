@@ -1,0 +1,47 @@
+@import './tailwind.css';
+/* Import Tailwind CSS */
+
+/* Import Google Fonts */
+
+/* Global Base Styles */
+body {
+  font-family: 'Inter', 'Plus Jakarta Sans', sans-serif;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  background-color: var(--bg-main);
+  color: var(--text-primary);
+}
+
+*, *::before, *::after {
+  box-sizing: inherit;
+}
+
+/* Reset default margins and paddings */
+h1, h2, h3, h4, h5, h6, p {
+  margin: 0;
+  padding: 0;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Link styles */
+a {
+  text-decoration: none;
+}
+
+/* Button reset */
+button {
+  cursor: pointer;
+  font-family: inherit;
+}
+
+/* Input reset */
+input, textarea, select {
+  font-family: inherit;
+  border: none;
+  outline: none;
+}
