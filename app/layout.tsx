@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import TopPromoBar from "@/components/layout/TopPromoBar";
 import Navbar from "@/components/layout/Navbar";
@@ -38,6 +39,7 @@ export default function RootLayout({
       className={`h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+<Suspense fallback={<div>Cargando...</div>}>
         <LocationProvider>
           <TopPromoBar />
           <Navbar />
@@ -48,6 +50,7 @@ export default function RootLayout({
           <Newsletter />
           <Footer />
         </LocationProvider>
+</Suspense>
       </body>
     </html>
   );
