@@ -154,6 +154,7 @@ export default function HomePage() {
             const attrs = item.attributes || item;
             const imagenData = attrs.imagen_banner?.data || attrs.imagen_banner || null;
             const imagenUrl = getStrapiMedia(imagenData?.url || null);
+            console.log(imagenUrl);
             return {
               imagen_banner: imagenUrl,
               link_destino: getSafeBannerHref(attrs.link_destino),

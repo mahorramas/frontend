@@ -3,7 +3,6 @@ import SearchRealtimeClient from "@/app/buscar/SearchRealtimeClient";
 
 const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL;
 
-
 interface Product {
     id: string;
     nombre: string;
