@@ -254,13 +254,6 @@ export default function HomePage() {
 
   return (
 
-    <div className="banner-container">
-      <img 
-        src={getStrapiURL(relativeUrl)} 
-        alt="Banner Mueblerías Ahorramas" 
-      />
-    </div>
-    
     <div className="bg-[#FAFAFA] min-h-screen text-[#1A1A1A] font-sans antialiased">
 
       {/* SECCIÓN DEL HERO BANNER (Carrusel) */}
@@ -378,6 +371,10 @@ export default function HomePage() {
           </div>
         )}
       </section>
+
+      <div>
+        <h1>MOSTRANDO IMAGEN AQUI......</h1>
+      </div>
 
       {/* SECCIÓN 1: LO MÁS NUEVO */}
       <section className="max-w-7xl mx-auto px-6 mt-12">
