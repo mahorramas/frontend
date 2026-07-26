@@ -250,8 +250,8 @@ export default function HomePage() {
     (item) => item.badge_oferta || item.tipo_oferta
   );
 
-console.log("¿Qué es getStrapiMedia?", getStrapiMedia);
-  console.log("¿Qué es fetchAPI?", fetchAPI);
+/* console.log("¿Qué es getStrapiMedia?", getStrapiMedia);
+  console.log("¿Qué es fetchAPI?", fetchAPI); */
 
   return (
 
