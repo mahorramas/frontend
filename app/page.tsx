@@ -254,6 +254,9 @@ export default function HomePage() {
 
   return (
 
+    <h1>
+      MUESTRA IMAGEN
+    </h1>
     <div className="banner-container">
       <img 
         src={getStrapiURL(relativeUrl)} 
