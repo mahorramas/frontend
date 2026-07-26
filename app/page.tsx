@@ -252,18 +252,7 @@ export default function HomePage() {
 
   const relativeUrl = bannerData.attributes.imagen.data.attributes.url; 
 
-  return (
-
-    <h1>
-      MUESTRA IMAGEN
-    </h1>
-    <div className="banner-container">
-      <img 
-        src={getStrapiURL(relativeUrl)} 
-        alt="Banner Mueblerías Ahorramas" 
-      />
-    </div>
-    
+  return (    
     <div className="bg-[#FAFAFA] min-h-screen text-[#1A1A1A] font-sans antialiased">
 
       {/* SECCIÓN DEL HERO BANNER (Carrusel) */}
