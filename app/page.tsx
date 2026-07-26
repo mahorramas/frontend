@@ -252,12 +252,8 @@ export default function HomePage() {
 
   const relativeUrl = bannerData.attributes.imagen.data.attributes.url; 
 
-<<<<<<< HEAD
   return (
 
-=======
-  return (    
->>>>>>> 1bde910acb47835bf1830e00f71ac72a01dee3b9
     <div className="bg-[#FAFAFA] min-h-screen text-[#1A1A1A] font-sans antialiased">
 
       {/* SECCIÓN DEL HERO BANNER (Carrusel) */}
