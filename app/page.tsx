@@ -252,7 +252,8 @@ export default function HomePage() {
 
 
   return (
-
+ console.log("¿Qué es getStrapiMedia?", getStrapiMedia);
+  console.log("¿Qué es fetchAPI?", fetchAPI);
     <div className="bg-[#FAFAFA] min-h-screen text-[#1A1A1A] font-sans antialiased">
 
       {/* SECCIÓN DEL HERO BANNER (Carrusel) */}
@@ -373,10 +374,6 @@ export default function HomePage() {
 
       <div>
         <h1>MOSTRANDO IMAGEN AQUI......</h1>
-        {{
-          console.log("¿Qué es getStrapiMedia?", getStrapiMedia);
-console.log("¿Qué es fetchAPI?", fetchAPI);
-        }}
       </div>
 
       {/* SECCIÓN 1: LO MÁS NUEVO */}
