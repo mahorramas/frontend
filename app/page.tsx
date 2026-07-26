@@ -250,7 +250,6 @@ export default function HomePage() {
     (item) => item.badge_oferta || item.tipo_oferta
   );
 
-  const relativeUrl = bannerData.attributes.imagen.data.attributes.url; 
 
   return (
 
