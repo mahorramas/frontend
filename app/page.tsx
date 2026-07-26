@@ -250,10 +250,11 @@ export default function HomePage() {
     (item) => item.badge_oferta || item.tipo_oferta
   );
 
-
-  return (
- console.log("¿Qué es getStrapiMedia?", getStrapiMedia);
+console.log("¿Qué es getStrapiMedia?", getStrapiMedia);
   console.log("¿Qué es fetchAPI?", fetchAPI);
+  
+  return (
+
     <div className="bg-[#FAFAFA] min-h-screen text-[#1A1A1A] font-sans antialiased">
 
       {/* SECCIÓN DEL HERO BANNER (Carrusel) */}
