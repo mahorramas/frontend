@@ -1,10 +1,16 @@
 // src/lib/api.ts
 
-const STRAPI_URL =
+/* const STRAPI_URL =
   process.env.NEXT_PUBLIC_STRAPI_URL ??
   (process.env.NODE_ENV === "development"
     ? "http://localhost:1337"
-    : undefined);
+    : undefined); */
+    const STRAPI_URL =
+  process.env.NEXT_PUBLIC_STRAPI_URL ??
+  (process.env.NODE_ENV === "development"
+    ? "http://localhost:1337"
+    : "https://muebleriasahorramas.com.mx");
+  
 
 if (!STRAPI_URL) {
   throw new Error(
