@@ -50,3 +50,4 @@ next-env.d.ts
 /ahorramas-backend/node_modules
 /ahorramas-backend/.tmp
 /ahorramas-backend/dist
+/components/catalog/dist

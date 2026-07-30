@@ -1,43 +1,47 @@
 // src/lib/api.ts
 
-/* const STRAPI_URL =
-  process.env.NEXT_PUBLIC_STRAPI_URL ??
-  (process.env.NODE_ENV === "development"
-    ? "http://localhost:1337"
-    : undefined); */
-    const STRAPI_URL =
-  process.env.NEXT_PUBLIC_STRAPI_URL ??
-  (process.env.NODE_ENV === "development"
-    ? "http://localhost:1337"
-    : "https://muebleriasahorramas.com.mx");
-  
+const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL;
 
-if (!STRAPI_URL) {
-  throw new Error(
-    "Missing NEXT_PUBLIC_STRAPI_URL. Please define it in your environment variables.",
-  );
+function isValidStrapiUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
+
 /**
  * Ayudante para realizar peticiones de forma limpia a Strapi
  * @param path Ruta del endpoint de la API (ej: "muebles")
  * @param query Parámetros opcionales de filtrado, orden o población (ej: "populate=*")
  */
 export async function fetchAPI(path: string, query?: string) {
-  const url = `${STRAPI_URL}/api/${path}${query ? `?${query}` : ""}`;
-
-  const response = await fetch(url, {
-    // Next.js mantendrá en caché los productos para cargarlos al instante,
-    // y revisará si hay cambios en Strapi de forma automática cada 60 segundos
-    next: { revalidate: 60 },
-  });
-
-  if (!response.ok) {
-    throw new Error(
-      `Error al conectar con la API de Strapi: ${response.statusText}`,
-    );
+  const baseUrl = STRAPI_URL?.trim();
+  if (!baseUrl || !isValidStrapiUrl(baseUrl)) {
+    throw new Error("La URL de Strapi no es válida.");
   }
 
-  return response.json();
+  const url = `${baseUrl.replace(/\/$/, "")}/api/${path}${query ? `?${query}` : ""}`;
+
+  try {
+    const response = await fetch(url, {
+      // Next.js mantendrá en caché los productos para cargarlos al instante,
+      // y revisará si hay cambios en Strapi de forma automática cada 60 segundos
+      next: { revalidate: 60 },
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Error al conectar con la API de Strapi: ${response.statusText}`,
+      );
+    }
+
+    return response.json();
+  } catch (error) {
+    console.error("fetchAPI error:", error);
+    throw error;
+  }
 }
 
 /**
