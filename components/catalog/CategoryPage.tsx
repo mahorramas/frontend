@@ -11,6 +11,7 @@ export interface CategoryProduct {
   tipo_oferta?: string;
   foto_icono?: string;
   imagenUrl?: string | null;
+  createdAt?: string;
 }
 
 interface CategoryPageProps {
@@ -21,16 +22,32 @@ interface CategoryPageProps {
   products: CategoryProduct[];
 }
 
+function normalizeCategoryName(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
 function matchesCategory(productCategory: string, slug: string) {
-  const normalizedCategory = productCategory.toLowerCase();
-  const normalizedSlug = slug.toLowerCase();
+  const normalizedCategory = normalizeCategoryName(productCategory);
+  const normalizedSlug = normalizeCategoryName(slug);
 
   if (normalizedSlug === "tv") {
     return normalizedCategory.includes("tv") || normalizedCategory.includes("mueble tv");
   }
 
   if (normalizedSlug === "otros") {
-    return normalizedCategory.includes("otro") || normalizedCategory.includes("muebles");
+    return (
+      normalizedCategory.includes("otro") ||
+      (normalizedCategory.includes("mueble") &&
+        !normalizedCategory.includes("sala") &&
+        !normalizedCategory.includes("recamara") &&
+        !normalizedCategory.includes("comedor") &&
+        !normalizedCategory.includes("colchon") &&
+        !normalizedCategory.includes("tv"))
+    );
   }
 
   if (normalizedSlug === "salas") return normalizedCategory.includes("sala");
@@ -58,22 +75,47 @@ function getPlaceholderIcon(slug: string) {
   }
 }
 
+function resolveMediaUrl(value: unknown): string | null {
+  if (!value) return null;
+
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const resolved = resolveMediaUrl(entry);
+      if (resolved) return resolved;
+    }
+    return null;
+  }
+
+  if (typeof value !== "object") return null;
+
+  const record = value as Record<string, unknown>;
+  if (record.data !== undefined) {
+    return resolveMediaUrl(record.data);
+  }
+
+  const attrs = (record.attributes as Record<string, unknown>) || record;
+  const directUrl = typeof attrs.url === "string" && attrs.url.trim() ? attrs.url : null;
+  if (directUrl) return directUrl;
+
+  const formats = attrs.formats as Record<string, unknown> | undefined;
+  const preferredFormats = ["large", "medium", "small", "thumbnail"];
+  for (const formatName of preferredFormats) {
+    const formatValue = formats?.[formatName] as Record<string, unknown> | undefined;
+    const formatUrl = typeof formatValue?.url === "string" && formatValue.url.trim() ? formatValue.url : null;
+    if (formatUrl) return formatUrl;
+  }
+
+  return null;
+}
+
 export function mapCategoryProduct(rawItem: unknown): CategoryProduct {
   const item = rawItem as Record<string, unknown>;
   const attrs = (item.attributes as Record<string, unknown>) || item;
-  const categoryData = ((attrs.categoria as Record<string, unknown> | undefined)?.data as Record<string, unknown> | undefined)?.attributes as Record<string, unknown> | undefined;
-  const categoryName = (categoryData?.nombre as string | undefined) || ((attrs.categoria as Record<string, unknown> | undefined)?.nombre as string | undefined) || "Muebles";
-
-  const fotoData = (attrs.imagen_producto as Record<string, unknown> | undefined)?.data as Array<Record<string, unknown>> | undefined;
-  let fotoUrl: string | null = null;
-
-  if (Array.isArray(fotoData) && fotoData.length > 0) {
-    const first = fotoData[0];
-    const firstAttrs = (first.attributes as Record<string, unknown>) || first;
-    fotoUrl = (firstAttrs.url as string | undefined) || null;
-  }
-
-  const imageUrl = fotoUrl ? fotoUrl : null;
+  const categoryValue = attrs.categoria as Record<string, unknown> | undefined;
+  const categoryRecord = categoryValue?.data ? (categoryValue.data as Record<string, unknown>) : categoryValue;
+  const categoryAttrs = ((categoryRecord?.attributes as Record<string, unknown> | undefined) || categoryRecord) as Record<string, unknown> | undefined;
+  const categoryName = (categoryAttrs?.nombre as string | undefined) || "Muebles";
+  const imageUrl = resolveMediaUrl(attrs.imagen_producto ?? attrs.imagen ?? attrs.foto_principal ?? attrs.foto ?? attrs.image);
 
   return {
     id: String((item.documentId as string | number | undefined) || (item.id as string | number | undefined) || ""),
@@ -81,9 +123,19 @@ export function mapCategoryProduct(rawItem: unknown): CategoryProduct {
     categoria: categoryName.toUpperCase(),
     badge_oferta: attrs.badge_oferta as string | undefined,
     tipo_oferta: attrs.tipo_oferta as string | undefined,
-    foto_icono: (categoryData?.icono as string | undefined) || "🛋️",
+    foto_icono: (categoryAttrs?.icono as string | undefined) || "🛋️",
     imagenUrl: imageUrl,
+    createdAt: attrs.createdAt as string | undefined || item.createdAt as string | undefined,
   };
+}
+
+function isNewProduct(product: CategoryProduct): boolean {
+  if (!product.createdAt) return false;
+  const created = new Date(product.createdAt).getTime();
+  if (Number.isNaN(created)) return false;
+  const now = Date.now();
+  const thirtyDays = 1000 * 60 * 60 * 24 * 30;
+  return now - created <= thirtyDays;
 }
 
 export default function CategoryPage({ title, description, slug, accentKey, products }: CategoryPageProps) {
@@ -125,6 +177,12 @@ export default function CategoryPage({ title, description, slug, accentKey, prod
                       </span>
                     )}
 
+                    {item.tipo_oferta && (
+                      <span className="absolute right-3 bottom-3 rounded-full bg-[#FDE8EA] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-[#A8202D] shadow-sm">
+                        {item.tipo_oferta}
+                      </span>
+                    )}
+
                     {item.imagenUrl ? (
                       <img src={item.imagenUrl} alt={item.nombre} className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105" />
                     ) : (
@@ -135,12 +193,6 @@ export default function CategoryPage({ title, description, slug, accentKey, prod
                   <div className="flex flex-1 flex-col p-5">
                     <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#626264]">{item.categoria}</p>
                     <h2 className="mt-2 text-lg font-semibold text-[#1A1A1A] line-clamp-2">{item.nombre}</h2>
-
-                    {item.tipo_oferta && (
-                      <p className={`mt-3 inline-flex w-fit rounded-full px-2.5 py-1 text-[11px] font-semibold ${accent.active} bg-[#F4F4F5]`}>
-                        {item.tipo_oferta}
-                      </p>
-                    )}
 
                     <Link
                       href={`/producto/${item.id}?categoria=${encodeURIComponent(item.categoria)}`}

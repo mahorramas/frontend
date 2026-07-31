@@ -1,3 +1,5 @@
+import { fetchAPI, getStrapiMedia } from "@/lib/api";
+
 export interface CategoryProduct {
   id: string;
   nombre: string;
@@ -6,6 +8,7 @@ export interface CategoryProduct {
   tipo_oferta?: string;
   foto_icono?: string;
   imagenUrl?: string | null;
+  createdAt?: string;
   precio_lista_chiapas?: number;
   precio_oferta_chiapas?: number;
   precio_lista_tabasco?: number;
@@ -34,20 +37,59 @@ function readValue(record: Record<string, unknown>, keys: string[]): unknown {
   return undefined;
 }
 
+function normalizeCategoryName(value?: string): string {
+  if (!value) return "Muebles";
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
+function resolveMediaUrl(value: unknown): string | null {
+  if (!value) return null;
+
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const resolved = resolveMediaUrl(entry);
+      if (resolved) return resolved;
+    }
+    return null;
+  }
+
+  if (typeof value !== "object") return null;
+
+  const record = value as Record<string, unknown>;
+  if (record.data !== undefined) {
+    return resolveMediaUrl(record.data);
+  }
+
+  const attrs = (record.attributes as Record<string, unknown>) || record;
+  const directUrl = readString(attrs.url as string | undefined);
+  if (directUrl) return directUrl;
+
+  const formats = attrs.formats as Record<string, unknown> | undefined;
+  const preferredFormats = ["large", "medium", "small", "thumbnail"];
+  for (const formatName of preferredFormats) {
+    const formatValue = formats?.[formatName] as Record<string, unknown> | undefined;
+    const formatUrl = readString(formatValue?.url as string | undefined);
+    if (formatUrl) return formatUrl;
+  }
+
+  return null;
+}
+
 export function mapCategoryProduct(rawItem: unknown): CategoryProduct {
   const item = rawItem as Record<string, unknown>;
   const attrs = (item.attributes as Record<string, unknown>) || item;
-  const categoryData = ((attrs.categoria as Record<string, unknown> | undefined)?.data as Record<string, unknown> | undefined)?.attributes as Record<string, unknown> | undefined;
-  const categoryName = (categoryData?.nombre as string | undefined) || ((attrs.categoria as Record<string, unknown> | undefined)?.nombre as string | undefined) || "Muebles";
 
-  const fotoData = (attrs.imagen_producto as Record<string, unknown> | undefined)?.data as Array<Record<string, unknown>> | undefined;
-  let fotoUrl: string | null = null;
+  const categoryValue = readValue(attrs, ["categoria"]);
+  const categoryRecord = categoryValue as Record<string, unknown> | undefined;
+  const categoryAttrs = ((categoryRecord?.data as Record<string, unknown> | undefined)?.attributes as Record<string, unknown> | undefined) || ((categoryRecord?.attributes as Record<string, unknown> | undefined) || categoryRecord);
+  const categoryName = readString(categoryAttrs?.nombre) || readString(categoryRecord?.nombre) || "Muebles";
 
-  if (Array.isArray(fotoData) && fotoData.length > 0) {
-    const first = fotoData[0];
-    const firstAttrs = (first.attributes as Record<string, unknown>) || first;
-    fotoUrl = (firstAttrs.url as string | undefined) || null;
-  }
+  const imageValue = readValue(attrs, ["imagen_producto", "imagen", "foto_principal", "foto", "image"]);
+  const fotoUrl = resolveMediaUrl(imageValue);
 
   const badge = readString(readValue(attrs, ["badge_oferta", "badge", "etiqueta_oferta", "tipo_oferta"]));
   const tipo = readString(readValue(attrs, ["tipo_oferta", "tipo", "tipo_promocion", "nombre_oferta"]));
@@ -58,8 +100,9 @@ export function mapCategoryProduct(rawItem: unknown): CategoryProduct {
     categoria: categoryName.toUpperCase(),
     badge_oferta: badge,
     tipo_oferta: tipo,
-    foto_icono: (categoryData?.icono as string | undefined) || "🛋️",
-    imagenUrl: fotoUrl,
+    foto_icono: readString(categoryAttrs?.icono) || "🛋️",
+    imagenUrl: fotoUrl ? getStrapiMedia(fotoUrl) : null,
+    createdAt: readString(readValue(attrs, ["createdAt", "created_at", "fecha_creacion"])),
     precio_lista_chiapas: readNumber(readValue(attrs, ["precio_lista_chiapas", "price_list_chiapas", "precio_chiapas"])),
     precio_oferta_chiapas: readNumber(readValue(attrs, ["precio_oferta_chiapas", "price_offer_chiapas", "precio_oferta"])),
     precio_lista_tabasco: readNumber(readValue(attrs, ["precio_lista_tabasco", "price_list_tabasco", "precio_tabasco"])),
@@ -67,4 +110,35 @@ export function mapCategoryProduct(rawItem: unknown): CategoryProduct {
     precio_lista_tapachula: readNumber(readValue(attrs, ["precio_lista_tapachula", "price_list_tapachula"])),
     precio_oferta_tapachula: readNumber(readValue(attrs, ["precio_oferta_tapachula", "price_offer_tapachula"])),
   };
+}
+
+export async function loadCategoryProducts(): Promise<CategoryProduct[]> {
+  const response = await fetchAPI("muebles", "populate=*");
+  return (response.data || []).map(mapCategoryProduct);
+}
+
+export function matchesCategory(productCategory: string, slug: string): boolean {
+  const normalized = normalizeCategoryName(productCategory);
+  const normalizedSlug = normalizeCategoryName(slug);
+
+  if (normalizedSlug === "tv") {
+    return normalized.includes("tv") || normalized.includes("mueble tv");
+  }
+  if (normalizedSlug === "otros") {
+    return (
+      normalized.includes("otro") ||
+      (normalized.includes("mueble") &&
+        !normalized.includes("sala") &&
+        !normalized.includes("recamara") &&
+        !normalized.includes("comedor") &&
+        !normalized.includes("colchon") &&
+        !normalized.includes("tv"))
+    );
+  }
+  if (normalizedSlug === "salas") return normalized.includes("sala");
+  if (normalizedSlug === "recamaras") return normalized.includes("recamara");
+  if (normalizedSlug === "comedores") return normalized.includes("comedor");
+  if (normalizedSlug === "colchones") return normalized.includes("colchon");
+
+  return false;
 }

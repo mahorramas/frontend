@@ -11,6 +11,11 @@ function isValidStrapiUrl(value: string) {
   }
 }
 
+// Strapi limita a 25 registros por página por defecto.
+// Al solicitar sin paginación explícita, aseguramos que se traigan todos
+// los registros (hasta 100) para que ninguna categoría se quede fuera.
+const DEFAULT_PAGE_SIZE = 100;
+
 /**
  * Ayudante para realizar peticiones de forma limpia a Strapi
  * @param path Ruta del endpoint de la API (ej: "muebles")
@@ -22,7 +27,15 @@ export async function fetchAPI(path: string, query?: string) {
     throw new Error("La URL de Strapi no es válida.");
   }
 
-  const url = `${baseUrl.replace(/\/$/, "")}/api/${path}${query ? `?${query}` : ""}`;
+  // Si el llamador no define paginación, solicitamos un pageSize amplio
+  // para evitar que Strapi trunque los resultados en 25 registros.
+  let effectiveQuery = query || "";
+  if (!effectiveQuery.includes("pagination")) {
+    const separator = effectiveQuery ? "&" : "";
+    effectiveQuery = `${effectiveQuery}${separator}pagination[pageSize]=${DEFAULT_PAGE_SIZE}`;
+  }
+
+  const url = `${baseUrl.replace(/\/$/, "")}/api/${path}${effectiveQuery ? `?${effectiveQuery}` : ""}`;
 
   try {
     const response = await fetch(url, {

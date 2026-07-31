@@ -13,6 +13,9 @@ interface Product {
   tipo_oferta?: string;
   foto_icono?: string;
   imagenUrl?: string | null;
+  destacado?: boolean;
+  calificacion?: number;
+  createdAt?: string;
 }
 
 // Interfaces de Strapi (v4 y v5)
@@ -46,12 +49,18 @@ interface StrapiMueble {
     imagen_producto?: StrapiMuebleImagen;
     badge_oferta?: string;
     tipo_oferta?: string;
+    destacado?: boolean;
+    calificacion?: number | string;
+    createdAt?: string;
   };
   nombre?: string;
   categoria?: StrapiMuebleCategoria;
   imagen_producto?: StrapiMuebleImagen;
   badge_oferta?: string;
   tipo_oferta?: string;
+  destacado?: boolean;
+  calificacion?: number | string;
+  createdAt?: string;
 }
 
 interface StrapiMueblesResponse {
@@ -135,6 +144,8 @@ export default function HomePage() {
   const [bannerLoading, setBannerLoading] = useState(true);
   const [currentSlide, setCurrentSlide] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
+  const [highlightedProducts, setHighlightedProducts] = useState<Product[]>([]);
+  const [highlightedLoading, setHighlightedLoading] = useState<boolean>(true);
 
   // Referencia para pausar el autoplay al pasar el mouse por encima
   const [isPaused, setIsPaused] = useState<boolean>(false);
@@ -225,7 +236,10 @@ export default function HomePage() {
             badge_oferta: attrs.badge_oferta,
             tipo_oferta: attrs.tipo_oferta,
             foto_icono: categoriaIcono,
-            imagenUrl: getStrapiMedia(fotoUrl)
+            imagenUrl: getStrapiMedia(fotoUrl),
+            destacado: attrs.destacado ?? false,
+            calificacion: typeof attrs.calificacion === "number" ? attrs.calificacion : Number(attrs.calificacion) || 0,
+            createdAt: attrs.createdAt || item.createdAt || "",
           };
         });
 
@@ -246,9 +260,73 @@ export default function HomePage() {
     loadProducts();
   }, []);
 
-  const offerProducts = products.filter(
-    (item) => item.badge_oferta || item.tipo_oferta
-  );
+  useEffect(() => {
+    async function loadHighlightedProducts() {
+      try {
+        setHighlightedLoading(true);
+        const json: StrapiMueblesResponse = await fetchAPI(
+          "muebles",
+          "populate=*&filters[destacado][$eq]=true&pagination[limit]=4"
+        );
+
+        const mapped = json.data.map((item: StrapiMueble) => {
+          const attrs = item.attributes || item;
+
+          const catData = attrs.categoria?.data?.attributes || attrs.categoria || {};
+          const categoriaNombre = catData.nombre || "Muebles";
+          const categoriaIcono = catData.icono || "🛋️";
+
+          const fotoData = attrs.imagen_producto?.data || attrs.imagen_producto || null;
+          let fotoUrl = null;
+          if (Array.isArray(fotoData) && fotoData.length > 0) {
+            const primeraFoto = fotoData[0];
+            const fotoAttrs = primeraFoto.attributes || primeraFoto;
+            fotoUrl = fotoAttrs.url || null;
+          }
+
+          return {
+            id: item.documentId || String(item.id),
+            nombre: attrs.nombre ?? "Producto sin nombre",
+            categoria: categoriaNombre.toUpperCase(),
+            badge_oferta: attrs.badge_oferta,
+            tipo_oferta: attrs.tipo_oferta,
+            foto_icono: categoriaIcono,
+            imagenUrl: getStrapiMedia(fotoUrl),
+            destacado: attrs.destacado ?? false,
+            calificacion: typeof attrs.calificacion === "number" ? attrs.calificacion : Number(attrs.calificacion) || 0,
+            createdAt: attrs.createdAt || item.createdAt || "",
+          };
+        });
+
+        setHighlightedProducts(mapped);
+      } catch (error) {
+        console.error("Error al cargar productos destacados...", error);
+        setHighlightedProducts([]);
+      } finally {
+        setHighlightedLoading(false);
+      }
+    }
+
+    loadHighlightedProducts();
+  }, []);
+
+  const hasOffer = (item: Product) => Boolean(item.badge_oferta?.trim() || item.tipo_oferta?.trim());
+
+  const offerProducts = products.filter(hasOffer);
+  const newestProducts = [...products]
+    .sort((a, b) => {
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bTime - aTime;
+    })
+    .slice(0, 4);
+
+  const favoriteProducts = [...products]
+    .filter((item) => typeof item.calificacion === "number" && item.calificacion > 0)
+    .sort((a, b) => (b.calificacion || 0) - (a.calificacion || 0))
+    .slice(0, 4);
+
+  const highlightedProductsByApi = highlightedProducts;
 
 /* console.log("¿Qué es getStrapiMedia?", getStrapiMedia);
   console.log("¿Qué es fetchAPI?", fetchAPI); */
@@ -387,7 +465,7 @@ export default function HomePage() {
             ? Array.from({ length: 4 }).map((_, i) => (
               <ProductSkeleton key={i} />
             ))
-            : products.map((item) => (
+            : newestProducts.map((item) => (
               <div key={`nuevo-${item.id}`} className="w-[calc((100%-1rem)/2)] lg:w-[calc((100%-2rem)/3)] min-w-[240px] max-w-[320px] shrink-0 bg-white border border-[#E4E4E7] rounded-xl overflow-hidden transition-all duration-300 hover:shadow-md hover:border-[#CE2C3C]">
                 <div className="bg-[#F4F4F5] h-40 flex items-center justify-center relative overflow-hidden">
                   <span className="absolute top-2 left-2 bg-[#FEF9C3] text-[#854D0E] text-[10px] font-bold px-2 py-0.5 rounded-full z-10">Nuevo</span>
@@ -420,7 +498,7 @@ export default function HomePage() {
             ? Array.from({ length: 4 }).map((_, i) => (
               <ProductSkeleton key={i} />
             ))
-            : products.map((item) => (
+            : favoriteProducts.map((item) => (
               <div key={`fav-${item.id}`} className="w-[calc((100%-1rem)/2)] lg:w-[calc((100%-2rem)/3)] min-w-[240px] max-w-[320px] shrink-0 bg-white border border-[#E4E4E7] rounded-xl overflow-hidden transition-all duration-300 hover:shadow-md hover:border-[#CE2C3C]">
                 <div className="bg-[#F4F4F5] h-40 flex items-center justify-center relative overflow-hidden">
                   {item.imagenUrl ? (
@@ -508,15 +586,23 @@ export default function HomePage() {
           <p className="text-sm text-[#626264] mt-0.5">Los más vendidos de esta temporada</p>
         </div>
         <div className="flex gap-4 overflow-x-auto pb-2">
-          {loading
+          {highlightedLoading
             ? Array.from({ length: 4 }).map((_, i) => (
               <ProductSkeleton key={i} />
             ))
-            : products.map((item) => (
+            : highlightedProductsByApi.map((item) => (
               <div key={`destacado-${item.id}`} className="w-[calc((100%-1rem)/2)] lg:w-[calc((100%-2rem)/3)] min-w-[240px] max-w-[320px] shrink-0 bg-white border border-[#E4E4E7] rounded-xl overflow-hidden transition-all duration-300 hover:shadow-md hover:border-[#CE2C3C]">
                 <div className="bg-[#F4F4F5] h-40 flex items-center justify-center relative overflow-hidden">
-                  <span className="absolute top-2 left-2 bg-red-100 text-red-700 text-[10px] font-bold px-2 py-0.5 rounded-full z-10">{item.badge_oferta || "Oferta 30%"}</span>
-                  <span className="absolute bottom-2 right-2 bg-[#FDE8EA] text-[#A8202D] text-[9px] font-bold px-2 py-0.5 rounded-full tracking-wider uppercase z-10">{item.tipo_oferta || "Hot Sale"}</span>
+                  {item.badge_oferta && (
+                    <span className="absolute top-2 left-2 bg-red-100 text-red-700 text-[10px] font-bold px-2 py-0.5 rounded-full z-10">
+                      {item.badge_oferta}
+                    </span>
+                  )}
+                  {item.tipo_oferta && (
+                    <span className="absolute bottom-2 right-2 bg-[#FDE8EA] text-[#A8202D] text-[9px] font-bold px-2 py-0.5 rounded-full tracking-wider uppercase z-10">
+                      {item.tipo_oferta}
+                    </span>
+                  )}
                   {item.imagenUrl ? (
                     <img src={item.imagenUrl} alt={item.nombre} className="w-full h-full object-contain p-4 transition-transform duration-300 hover:scale-105" />
                   ) : (

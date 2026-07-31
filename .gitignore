@@ -51,3 +51,5 @@ next-env.d.ts
 /ahorramas-backend/.tmp
 /ahorramas-backend/dist
 /components/catalog/dist
+/app/otros/dist
+/app/salas/dist

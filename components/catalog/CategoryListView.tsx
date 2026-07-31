@@ -15,16 +15,33 @@ interface CategoryListProps {
 
 type SortOption = "popular" | "precio-asc" | "precio-desc" | "nuevo";
 
+function isNewProduct(product: CategoryProduct): boolean {
+  if (!product.createdAt) return false;
+  const created = new Date(product.createdAt).getTime();
+  if (Number.isNaN(created)) return false;
+  const now = Date.now();
+  const thirtyDays = 1000 * 60 * 60 * 24 * 30;
+  return now - created <= thirtyDays;
+}
+
+function normalizeCategoryName(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
 function matchesCategory(productCategory: string, slug: string) {
-  const normalized = productCategory.toLowerCase().trim();
-  const normalizedSlug = slug.toLowerCase();
+  const normalized = normalizeCategoryName(productCategory);
+  const normalizedSlug = normalizeCategoryName(slug);
 
   if (normalizedSlug === "tv") {
     return normalized.includes("tv") || normalized.includes("mueble tv");
   }
   if (normalizedSlug === "otros") {
     return (
-      normalized.includes("otro") ||
+      normalized.includes("otros") ||
       (normalized.includes("mueble") &&
         !normalized.includes("sala") &&
         !normalized.includes("recamara") &&
@@ -41,7 +58,7 @@ function matchesCategory(productCategory: string, slug: string) {
   return false;
 }
 
-function extractMaterial(name: string): string {
+function extractMaterial(name: string | undefined): string {
   const materials: Record<string, string[]> = {
     "Cuero": ["cuero", "leather"],
     "Tela": ["tela", "fabric", "algodón", "lino"],
@@ -50,7 +67,7 @@ function extractMaterial(name: string): string {
     "Rattan": ["rattan", "ratán"],
   };
 
-  const nameLower = name.toLowerCase();
+  const nameLower = (name || "").toLowerCase();
   for (const [material, keywords] of Object.entries(materials)) {
     if (keywords.some(kw => nameLower.includes(kw))) {
       return material;
@@ -106,7 +123,7 @@ export default function CategoryListView({ title, slug, accentKey, products }: C
 
     if (searchTerm) {
       result = result.filter(p =>
-        p.nombre.toLowerCase().includes(searchTerm.toLowerCase())
+        (p.nombre || "").toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
@@ -124,7 +141,7 @@ export default function CategoryListView({ title, slug, accentKey, products }: C
     } else if (sortBy === "precio-desc") {
       result.sort((a, b) => getPriceInfo(b).lista - getPriceInfo(a).lista);
     } else if (sortBy === "nuevo") {
-      result.sort((a, b) => (b.id.localeCompare(a.id)));
+      result.sort((a, b) => String(b.id).localeCompare(String(a.id)));
     }
 
     return result;
@@ -282,19 +299,27 @@ export default function CategoryListView({ title, slug, accentKey, products }: C
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                 {filteredProducts.map((product) => {
-                  const { lista, oferta } = getPriceInfo(product);
-                  const tieneDescuento = oferta && oferta > 0;
+                  const isNew = isNewProduct(product);
 
                   return (
                     <article
                       key={product.id}
-                      className="bg-white border border-[#E4E4E7] rounded-xl overflow-hidden transition-all duration-300 hover:shadow-lg hover:border-[#CE2C3C] group flex flex-col h-full"
+                      className="bg-white border border-[#E4E4E7] rounded-xl overflow-hidden transition-all duration-300 hover:shadow-lg hover:border-[#CE2C3C] group"
                     >
-                      {/* Imagen */}
-                      <div className="relative bg-[#F4F4F5] h-48 flex items-center justify-center overflow-hidden">
-                        {product.badge_oferta && (
+                      <div className="bg-[#F4F4F5] h-40 flex items-center justify-center relative overflow-hidden">
+                        {product.badge_oferta ? (
                           <span className={`absolute top-3 left-3 text-[10px] font-bold px-2.5 py-1 rounded-full z-10 ${accent.active === "text-[#CE2C3C]" ? "bg-red-100 text-red-700" : accent.active === "text-[#D97706]" ? "bg-yellow-100 text-yellow-700" : accent.active === "text-[#0F766E]" ? "bg-teal-100 text-teal-700" : accent.active === "text-[#2563EB]" ? "bg-blue-100 text-blue-700" : accent.active === "text-[#0F172A]" ? "bg-slate-100 text-slate-900" : "bg-gray-100 text-gray-700"}`}>
                             {product.badge_oferta}
+                          </span>
+                        ) : isNew ? (
+                          <span className="absolute top-3 left-3 bg-[#FEF9C3] text-[#854D0E] text-[10px] font-bold px-2 py-0.5 rounded-full z-10">
+                            Nuevo
+                          </span>
+                        ) : null}
+
+                        {product.tipo_oferta && (
+                          <span className="absolute bottom-3 right-3 bg-[#FDE8EA] text-[#A8202D] text-[9px] font-bold px-2 py-0.5 rounded-full tracking-wider uppercase z-10">
+                            {product.tipo_oferta}
                           </span>
                         )}
 
@@ -309,47 +334,12 @@ export default function CategoryListView({ title, slug, accentKey, products }: C
                         )}
                       </div>
 
-                      {/* Contenido */}
-                      <div className="p-4 flex flex-col flex-1">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#626264]">
-                          {product.categoria}
-                        </p>
-
-                        <h3 className="mt-2 font-bold text-[#1A1A1A] text-sm line-clamp-2 min-h-10">
-                          {product.nombre}
-                        </h3>
-
-                        {product.tipo_oferta && (
-                          <span className={`mt-2 inline-flex text-[10px] font-bold px-2 py-1 rounded-full w-fit ${accent.active === "text-[#CE2C3C]" ? "bg-red-100 text-red-700" : accent.active === "text-[#D97706]" ? "bg-yellow-100 text-yellow-700" : accent.active === "text-[#0F766E]" ? "bg-teal-100 text-teal-700" : accent.active === "text-[#2563EB]" ? "bg-blue-100 text-blue-700" : accent.active === "text-[#0F172A]" ? "bg-slate-100 text-slate-900" : "bg-gray-100 text-gray-700"}`}>
-                            {product.tipo_oferta}
-                          </span>
-                        )}
-
-                        {/* Precios */}
-                        <div className="mt-4 mb-4">
-                          {tieneDescuento ? (
-                            <div className="space-y-1">
-                              <p className="text-xs text-[#626264] line-through">
-                                ${lista.toLocaleString("es-MX", { maximumFractionDigits: 0 })}
-                              </p>
-                              <p className={`text-lg font-bold ${accent.active}`}>
-                                ${oferta.toLocaleString("es-MX", { maximumFractionDigits: 0 })}
-                              </p>
-                              <p className="text-[10px] text-[#626264]">
-                                {Math.round(((lista - oferta) / lista) * 100)}% OFF
-                              </p>
-                            </div>
-                          ) : (
-                            <p className={`text-lg font-bold ${accent.active}`}>
-                              ${lista.toLocaleString("es-MX", { maximumFractionDigits: 0 })}
-                            </p>
-                          )}
-                        </div>
-
-                        {/* Botón */}
+                      <div className="p-4">
+                        <span className="text-[10px] font-bold text-[#626264] tracking-wider uppercase">{product.categoria}</span>
+                        <h3 className="font-bold text-sm text-[#1A1A1A] mt-2 mb-4 h-10 line-clamp-2">{product.nombre}</h3>
                         <Link
                           href={`/producto/${product.id}?categoria=${encodeURIComponent(product.categoria)}`}
-                          className={`mt-auto w-full py-2.5 px-4 rounded-lg font-bold text-sm text-white transition text-center ${accent.active === "text-[#CE2C3C]" ? "bg-[#CE2C3C] hover:bg-[#A8202D]" : accent.active === "text-[#D97706]" ? "bg-[#D97706] hover:bg-[#B45309]" : accent.active === "text-[#0F766E]" ? "bg-[#0F766E] hover:bg-[#115E59]" : accent.active === "text-[#2563EB]" ? "bg-[#2563EB] hover:bg-[#1D4ED8]" : accent.active === "text-[#0F172A]" ? "bg-[#0F172A] hover:bg-[#111827]" : "bg-[#475569] hover:bg-[#334155]"}`}
+                          className={`block w-full bg-[#CE2C3C] text-white text-xs font-bold py-2.5 rounded-md text-center hover:bg-[#A8202D] transition`}
                         >
                           Ver producto
                         </Link>
