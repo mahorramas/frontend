@@ -53,3 +53,6 @@ next-env.d.ts
 /components/catalog/dist
 /app/otros/dist
 /app/salas/dist
+/components/cart/dist
+/app/auth/login/dist
+/app/cuenta/dist

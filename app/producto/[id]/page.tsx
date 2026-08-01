@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
     Armchair,
     ChevronDown,
@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useLocation } from "@/components/providers/LocationProvider";
 import { useCart } from "@/components/providers/CartProvider";
+import { useAuth } from "@/components/providers/AuthProvider";
 import { getActivePrices } from "@/lib/pricing";
 
 const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL;
@@ -29,6 +30,7 @@ interface Comment {
     titulo?: string;
     comentario?: string;
     ubicacion?: string;
+    compra_verificada?: boolean;
 }
 
 interface ProductVariant {
@@ -88,6 +90,8 @@ const catalogPopulateQuery = new URLSearchParams({
     "populate[categoria]": "true",
 });
 
+const PRODUCT_COMMENTS_STORAGE_KEY = "ahorramas-product-comments";
+
 function asRecord(value: unknown): UnknownRecord {
     return value && typeof value === "object" ? (value as UnknownRecord) : {};
 }
@@ -116,6 +120,61 @@ function readString(value: unknown): string {
 function readNumber(value: unknown): number {
     const number = typeof value === "number" ? value : Number(value);
     return Number.isFinite(number) ? number : 0;
+}
+
+function sanitizeComment(comment: Comment): Comment {
+    const sanitized = { ...comment };
+    const location = readString(sanitized.ubicacion).trim();
+
+    // Nunca persistir ni mostrar un correo electrónico como ubicación.
+    if (!location || location.includes("@")) {
+        delete sanitized.ubicacion;
+    }
+
+    return sanitized;
+}
+
+function readStoredProductComments(productId: string): Comment[] {
+    if (typeof window === "undefined") return [];
+
+    try {
+        const rawValue = window.localStorage.getItem(PRODUCT_COMMENTS_STORAGE_KEY);
+        if (!rawValue) return [];
+
+        const parsed = JSON.parse(rawValue) as Record<string, Comment[]>;
+        return Array.isArray(parsed[productId]) ? parsed[productId].map(sanitizeComment) : [];
+    } catch {
+        return [];
+    }
+}
+
+function saveStoredProductComments(productId: string, comments: Comment[]) {
+    if (typeof window === "undefined") return;
+
+    try {
+        const rawValue = window.localStorage.getItem(PRODUCT_COMMENTS_STORAGE_KEY);
+        const existing: Record<string, Comment[]> = rawValue ? JSON.parse(rawValue) : {};
+        existing[productId] = comments.map(sanitizeComment);
+        window.localStorage.setItem(PRODUCT_COMMENTS_STORAGE_KEY, JSON.stringify(existing));
+    } catch {
+        // Si el almacenamiento no está disponible, no hacemos nada.
+    }
+}
+
+function mergeComments(...commentGroups: Comment[][]): Comment[] {
+    const uniqueComments: Comment[] = [];
+    const seen = new Set<string>();
+
+    commentGroups.forEach((group) => {
+        group.forEach((comment) => {
+            const key = comment.id || `${comment.autor || "anon"}-${comment.titulo || ""}-${comment.comentario || ""}`;
+            if (seen.has(key)) return;
+            seen.add(key);
+            uniqueComments.push(comment);
+        });
+    });
+
+    return uniqueComments;
 }
 
 function getStrapiMedia(url: string | null | undefined) {
@@ -172,6 +231,7 @@ function mapProduct(rawItem: unknown): ProductDetail {
         titulo: readString(comment.titulo),
         comentario: readString(comment.comentario),
         ubicacion: readString(comment.ubicacion),
+        compra_verificada: Boolean(comment.compra_verificada),
     }));
 
     return {
@@ -286,6 +346,7 @@ function getCategoryNote(categoria: string): { title: string; message: string } 
 
 
 export default function ProductDetailPage() {
+    const router = useRouter();
     const params = useParams<{ id: string }>();
     const id = params?.id;
     const [product, setProduct] = useState<ProductDetail | null>(null);
@@ -296,8 +357,14 @@ export default function ProductDetailPage() {
     const [selectedGalleryImage, setSelectedGalleryImage] = useState("");
     const [quantity, setQuantity] = useState(1);
     const [specsOpen, setSpecsOpen] = useState(true);
+    const [commentTitle, setCommentTitle] = useState("");
+    const [commentText, setCommentText] = useState("");
+    const [commentRating, setCommentRating] = useState(5);
+    const [commentMessage, setCommentMessage] = useState("");
+    const [isCommentModalOpen, setIsCommentModalOpen] = useState(false);
     const { region, hasValidPostalCode } = useLocation();
     const { addItem, openCart } = useCart();
+    const { user } = useAuth();
 
     useEffect(() => {
         let ignore = false;
@@ -324,6 +391,8 @@ export default function ProductDetailPage() {
                 if (ignore) return;
 
                 const mappedProduct = mapProduct(jsonDetail.data);
+                const storedComments = readStoredProductComments(id);
+                const mergedComments = mergeComments(mappedProduct.comentarios, storedComments);
                 const baseInitial = mappedProduct.variantes.find(
                     (variant) =>
                         variant.tipo_aplicacion === "Base" || variant.tipo_aplicacion === "Ambos",
@@ -333,7 +402,7 @@ export default function ProductDetailPage() {
                         variant.tipo_aplicacion === "Frente" || variant.tipo_aplicacion === "Ambos",
                 );
 
-                setProduct(mappedProduct);
+                setProduct({ ...mappedProduct, comentarios: mergedComments });
                 setSelectedBaseTela(baseInitial?.tela || "");
                 setSelectedFrenteTela(frontInitial?.tela || "");
                 setSelectedGalleryImage("");
@@ -420,6 +489,56 @@ export default function ProductDetailPage() {
     const thumbnails = Array.from(new Set([...galleryImages, ...variantImages])).slice(0, 5);
     const categoryNote = getCategoryNote(product.categoria);
 
+    const handleWriteReview = () => {
+        if (!user) {
+            router.push(`/auth/login?redirect=${encodeURIComponent(`/producto/${id}`)}`);
+            return;
+        }
+        setIsCommentModalOpen(true);
+    };
+
+    const handleCommentSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+
+        if (!user || !product) return;
+
+        const trimmedTitle = commentTitle.trim();
+        const trimmedComment = commentText.trim();
+
+        if (!trimmedTitle || !trimmedComment) {
+            setCommentMessage("Escribe un título y tu experiencia para publicar el comentario.");
+            return;
+        }
+
+        const newComment: Comment = {
+            id: crypto.randomUUID(),
+            autor: user.nombre,
+            puntuacion: commentRating,
+            titulo: trimmedTitle,
+            comentario: trimmedComment,
+            compra_verificada: user.compraVerificada,
+        };
+
+        const existingComments = readStoredProductComments(product.id);
+        const nextComments = mergeComments([newComment], existingComments);
+        saveStoredProductComments(product.id, nextComments);
+
+        setProduct((currentProduct) => {
+            if (!currentProduct) return currentProduct;
+            return {
+                ...currentProduct,
+                comentarios: mergeComments([newComment], currentProduct.comentarios),
+            };
+        });
+        setCommentTitle("");
+        setCommentText("");
+        setCommentRating(5);
+        setCommentMessage("Gracias por compartir tu reseña.");
+        setTimeout(() => {
+            setIsCommentModalOpen(false);
+            setCommentMessage("");
+        }, 1500);
+    };
 
     return (
         <div className="min-h-screen bg-[#f5f5f6] text-[#202124]">
@@ -478,7 +597,7 @@ export default function ProductDetailPage() {
                             </button>
                             {specsOpen && (
                                 <div className="overflow-x-auto px-4 py-3">
-                                    <table className="w-full min-w-[480px] text-left text-xs">
+                                    <table className="w-full min-w-120 text-left text-xs">
                                         <tbody className="[&_td]:border-b [&_td]:border-zinc-100 [&_td]:py-2">
                                             <tr>
                                                 <td className="font-bold text-zinc-500">Producto</td>
@@ -695,7 +814,23 @@ export default function ProductDetailPage() {
                     hasValidPostalCode={hasValidPostalCode}
                 />
 
-                <ReviewsSection product={product} />
+                <ReviewsSection product={product} onWriteReview={handleWriteReview} user={user} />
+
+                <CommentModal
+                    isOpen={isCommentModalOpen}
+                    product={product}
+                    user={user}
+                    onClose={() => setIsCommentModalOpen(false)}
+                    onSubmit={handleCommentSubmit}
+                    commentTitle={commentTitle}
+                    setCommentTitle={setCommentTitle}
+                    commentText={commentText}
+                    setCommentText={setCommentText}
+                    commentRating={commentRating}
+                    setCommentRating={setCommentRating}
+                    commentMessage={commentMessage}
+                    setCommentMessage={setCommentMessage}
+                />
             </main>
 
         </div>
@@ -824,7 +959,7 @@ function ProductRail({
     );
 }
 
-function ReviewsSection({ product }: { product: ProductDetail }) {
+function ReviewsSection({ product, onWriteReview, user }: { product: ProductDetail; onWriteReview: () => void; user: ReturnType<typeof useAuth>["user"] }) {
     const distribution = [5, 4, 3].map((score) => {
         const total = product.comentarios.length || 1;
         const count = product.comentarios.filter(
@@ -837,7 +972,13 @@ function ReviewsSection({ product }: { product: ProductDetail }) {
         <section className="mx-auto mt-14 max-w-4xl overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-zinc-100 bg-zinc-50 px-5 py-3">
                 <h2 className="text-sm font-black text-zinc-800">Opiniones</h2>
-                <Minus className="h-4 w-4 text-zinc-500" />
+                <button
+                    type="button"
+                    onClick={onWriteReview}
+                    className="rounded-full bg-[#d12d3d] px-4 py-1.5 text-[11px] font-extrabold text-white transition hover:bg-[#b72432]"
+                >
+                    Escribir una reseña
+                </button>
             </div>
 
             <div className="grid gap-6 p-5 md:grid-cols-[220px_1fr]">
@@ -880,9 +1021,14 @@ function ReviewsSection({ product }: { product: ProductDetail }) {
                                 <div className="flex items-start justify-between gap-4">
                                     <div>
                                         <h3 className="text-sm font-extrabold text-zinc-800">{comment.autor}</h3>
-                                        {comment.titulo && (
-                                            <p className="mt-1 text-xs font-bold text-zinc-700">{comment.titulo}</p>
-                                        )}
+                                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                                            <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${comment.compra_verificada ? "bg-emerald-100 text-emerald-700" : "bg-zinc-100 text-zinc-600"}`}>
+                                                {comment.compra_verificada ? "Compra verificada" : "Compra no verificada"}
+                                            </span>
+                                            {comment.titulo && (
+                                                <p className="text-xs font-bold text-zinc-700">{comment.titulo}</p>
+                                            )}
+                                        </div>
                                     </div>
                                     <div className="flex shrink-0 text-[#ff9900]">
                                         {Array.from({ length: 5 }).map((_, index) => (
@@ -909,6 +1055,116 @@ function ReviewsSection({ product }: { product: ProductDetail }) {
                 </div>
             </div>
         </section>
+    );
+}
+
+function CommentModal({
+    isOpen,
+    product,
+    user,
+    onClose,
+    onSubmit,
+    commentTitle,
+    setCommentTitle,
+    commentText,
+    setCommentText,
+    commentRating,
+    setCommentRating,
+    commentMessage,
+    setCommentMessage,
+}: {
+    isOpen: boolean;
+    product: ProductDetail | null;
+    user: ReturnType<typeof useAuth>["user"];
+    onClose: () => void;
+    onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+    commentTitle: string;
+    setCommentTitle: (value: string) => void;
+    commentText: string;
+    setCommentText: (value: string) => void;
+    commentRating: number;
+    setCommentRating: (value: number) => void;
+    commentMessage: string;
+    setCommentMessage: (value: string) => void;
+}) {
+    if (!isOpen || !user || !product) return null;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white shadow-lg">
+                <div className="flex items-center justify-between border-b border-zinc-100 bg-zinc-50 px-6 py-4">
+                    <h2 className="text-lg font-extrabold text-zinc-800">Escribir una reseña</h2>
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="text-zinc-400 transition hover:text-zinc-600"
+                    >
+                        ✕
+                    </button>
+                </div>
+
+                <form onSubmit={onSubmit} className="space-y-4 p-6">
+                    <div>
+                        <div className="flex items-center justify-between gap-2">
+                            <h3 className="text-sm font-semibold text-zinc-700">{user.nombre}</h3>
+                            <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${user.compraVerificada ? "bg-emerald-100 text-emerald-700" : "bg-zinc-100 text-zinc-600"}`}>
+                                {user.compraVerificada ? "Compra verificada" : "Compra no verificada"}
+                            </span>
+                        </div>
+                        <div className="mt-2 flex gap-1">
+                            {Array.from({ length: 5 }).map((_, index) => {
+                                const value = index + 1;
+                                return (
+                                    <button
+                                        key={value}
+                                        type="button"
+                                        onClick={() => setCommentRating(value)}
+                                        className="rounded-full p-0.5"
+                                    >
+                                        <Star
+                                            className={`h-5 w-5 ${value <= commentRating ? "fill-[#ff9900] text-[#ff9900]" : "text-zinc-300"}`}
+                                        />
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    <label className="block text-sm font-semibold text-zinc-700">
+                        Título
+                        <input
+                            value={commentTitle}
+                            onChange={(event) => setCommentTitle(event.target.value)}
+                            className="mt-1 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-[#d12d3d]"
+                            placeholder="Qué te pareció este producto"
+                        />
+                    </label>
+
+                    <label className="block text-sm font-semibold text-zinc-700">
+                        Comentario
+                        <textarea
+                            value={commentText}
+                            onChange={(event) => setCommentText(event.target.value)}
+                            className="mt-1 min-h-24 w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-[#d12d3d]"
+                            placeholder="Comparte tu experiencia con este producto"
+                        />
+                    </label>
+
+                    <button
+                        type="submit"
+                        className="w-full rounded-lg bg-[#20b857] px-4 py-2.5 text-sm font-extrabold text-white transition hover:bg-[#149447]"
+                    >
+                        Publicar reseña
+                    </button>
+
+                    {commentMessage ? (
+                        <p className={`text-sm ${commentMessage.includes("Gracias") ? "text-emerald-600" : "text-zinc-600"}`}>
+                            {commentMessage}
+                        </p>
+                    ) : null}
+                </form>
+            </div>
+        </div>
     );
 }
 

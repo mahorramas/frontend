@@ -7,6 +7,7 @@ import Newsletter from "@/components/layout/Newsletter";
 import Footer from "@/components/layout/Footer";
 import { LocationProvider } from "@/components/providers/LocationProvider";
 import { CartProvider } from "@/components/providers/CartProvider";
+import { AuthProvider } from "@/components/providers/AuthProvider";
 import CartDrawer from "@/components/cart/CartDrawer";
 import "../styles/tailwind.css";
 import "../styles/index.css";
@@ -43,19 +44,21 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
 <Suspense fallback={<div>Cargando...</div>}>
-          <CartProvider>
-            <LocationProvider>
-              <TopPromoBar />
-              <Navbar />
+          <AuthProvider>
+            <CartProvider>
+              <LocationProvider>
+                <TopPromoBar />
+                <Navbar />
 
-              {children}
+                {children}
 
-              <CartDrawer />
-              <TrustBar />
-              <Newsletter />
-              <Footer />
-            </LocationProvider>
-          </CartProvider>
+                <CartDrawer />
+                <TrustBar />
+                <Newsletter />
+                <Footer />
+              </LocationProvider>
+            </CartProvider>
+          </AuthProvider>
 </Suspense>
       </body>
     </html>

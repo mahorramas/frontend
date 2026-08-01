@@ -81,18 +81,34 @@ function readStoredCart(): CartItem[] {
 }
 
 export function CartProvider({ children }: { children: ReactNode }) {
-    const [items, setItems] = useState<CartItem[]>(() => {
-        return readStoredCart();
-    });
+    const [items, setItems] = useState<CartItem[]>([]);
+    const [isHydrated, setIsHydrated] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
 
     useEffect(() => {
+        if (typeof window === "undefined") return;
+
+        try {
+            const storedItems = readStoredCart();
+            if (storedItems.length > 0) {
+                setItems(storedItems);
+            }
+        } catch {
+            // Sin acciones necesarias si localStorage no está disponible.
+        } finally {
+            setIsHydrated(true);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!isHydrated || typeof window === "undefined") return;
+
         try {
             window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(items));
         } catch {
             // Sin acciones necesarias si localStorage no está disponible.
         }
-    }, [items]);
+    }, [items, isHydrated]);
 
     const openCart = useCallback(() => setIsOpen(true), []);
     const closeCart = useCallback(() => setIsOpen(false), []);

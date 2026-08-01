@@ -4,6 +4,7 @@ import {
     createContext,
     useCallback,
     useContext,
+    useEffect,
     useMemo,
     useState,
     type ReactNode,
@@ -23,6 +24,44 @@ import {
     type Region,
 } from "@/lib/location";
 
+const getInitialPreferredRegion = (): Region | null => {
+    if (typeof window === "undefined") return null;
+
+    let fromStorage: string | null = null;
+    try {
+        fromStorage = window.localStorage.getItem(POSTAL_CODE_REGION_STORAGE_KEY);
+    } catch {
+        fromStorage = null;
+    }
+    const fromCookie = readCookie(POSTAL_CODE_REGION_COOKIE_KEY);
+    const candidate = (fromStorage || fromCookie || "") as Region;
+
+    return candidate === "chiapas" || candidate === "tabasco" || candidate === "tapachula"
+        ? candidate
+        : null;
+};
+
+const getInitialPostalCode = (preferredRegion: Region | null): string => {
+    if (typeof window === "undefined") return "";
+
+    let postalFromStorage: string | null = null;
+    try {
+        postalFromStorage = window.localStorage.getItem(POSTAL_CODE_STORAGE_KEY);
+    } catch {
+        postalFromStorage = null;
+    }
+    const postalFromCookie = readCookie(POSTAL_CODE_COOKIE_KEY);
+    const initial = normalizePostalCode(postalFromStorage || postalFromCookie || "");
+
+    if (!initial || !isPostalCodeFormatValid(initial)) {
+        return "";
+    }
+
+    const resolvedRegion = resolveRegionByPostalCode(initial, preferredRegion);
+
+    return resolvedRegion ? initial : "";
+};
+
 type LocationContextValue = {
     postalCode: string;
     region: Region | null;
@@ -36,39 +75,16 @@ type LocationContextValue = {
 const LocationContext = createContext<LocationContextValue | null>(null);
 
 export function LocationProvider({ children }: { children: ReactNode }) {
-    const [preferredRegion, setPreferredRegionState] = useState<Region | null>(() => {
-        if (typeof window === "undefined") return null;
+    const [preferredRegion, setPreferredRegionState] = useState<Region | null>(null);
+    const [postalCode, setPostalCodeState] = useState<string>("");
 
-        const fromStorage = window.localStorage.getItem(POSTAL_CODE_REGION_STORAGE_KEY);
-        const fromCookie = readCookie(POSTAL_CODE_REGION_COOKIE_KEY);
-        const candidate = (fromStorage || fromCookie || "") as Region;
+    useEffect(() => {
+        const initialPreferredRegion = getInitialPreferredRegion();
+        const initialPostalCode = getInitialPostalCode(initialPreferredRegion);
 
-        if (candidate === "chiapas" || candidate === "tabasco" || candidate === "tapachula") {
-            return candidate;
-        }
-
-        return null;
-    });
-
-    const [postalCode, setPostalCodeState] = useState<string>(() => {
-        if (typeof window === "undefined") return "";
-
-        const fromStorage = window.localStorage.getItem(POSTAL_CODE_STORAGE_KEY);
-        const fromCookie = readCookie(POSTAL_CODE_COOKIE_KEY);
-        const initial = normalizePostalCode(fromStorage || fromCookie || "");
-
-        if (!initial || !isPostalCodeFormatValid(initial)) {
-            return "";
-        }
-
-        const resolvedRegion = resolveRegionByPostalCode(initial, preferredRegion);
-
-        if (!resolvedRegion) {
-            return "";
-        }
-
-        return initial;
-    });
+        setPreferredRegionState(initialPreferredRegion);
+        setPostalCodeState(initialPostalCode);
+    }, []);
 
     const region: Region | null = useMemo(() => {
         if (!postalCode) return null;
@@ -107,8 +123,12 @@ export function LocationProvider({ children }: { children: ReactNode }) {
 
         setPostalCodeState(normalized);
         setPreferredRegionState(resolvedRegion);
-        window.localStorage.setItem(POSTAL_CODE_STORAGE_KEY, normalized);
-        window.localStorage.setItem(POSTAL_CODE_REGION_STORAGE_KEY, resolvedRegion);
+        try {
+            window.localStorage.setItem(POSTAL_CODE_STORAGE_KEY, normalized);
+            window.localStorage.setItem(POSTAL_CODE_REGION_STORAGE_KEY, resolvedRegion);
+        } catch {
+            // Sin acciones necesarias si localStorage no está disponible.
+        }
         setCookie(POSTAL_CODE_COOKIE_KEY, normalized);
         setCookie(POSTAL_CODE_REGION_COOKIE_KEY, resolvedRegion);
 
@@ -127,7 +147,11 @@ export function LocationProvider({ children }: { children: ReactNode }) {
         }
 
         setPreferredRegionState(nextRegion);
-        window.localStorage.setItem(POSTAL_CODE_REGION_STORAGE_KEY, nextRegion);
+        try {
+            window.localStorage.setItem(POSTAL_CODE_REGION_STORAGE_KEY, nextRegion);
+        } catch {
+            // Sin acciones necesarias si localStorage no está disponible.
+        }
         setCookie(POSTAL_CODE_REGION_COOKIE_KEY, nextRegion);
 
         return { ok: true };
@@ -136,8 +160,12 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     const clearPostalCode = useCallback(() => {
         setPostalCodeState("");
         setPreferredRegionState(null);
-        window.localStorage.removeItem(POSTAL_CODE_STORAGE_KEY);
-        window.localStorage.removeItem(POSTAL_CODE_REGION_STORAGE_KEY);
+        try {
+            window.localStorage.removeItem(POSTAL_CODE_STORAGE_KEY);
+            window.localStorage.removeItem(POSTAL_CODE_REGION_STORAGE_KEY);
+        } catch {
+            // Sin acciones necesarias si localStorage no está disponible.
+        }
         deleteCookie(POSTAL_CODE_COOKIE_KEY);
         deleteCookie(POSTAL_CODE_REGION_COOKIE_KEY);
     }, []);

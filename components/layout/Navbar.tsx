@@ -13,6 +13,7 @@ import {
 import { normalizePostalCode, type Region } from "@/lib/location";
 import { useLocation } from "@/components/providers/LocationProvider";
 import { useCart } from "@/components/providers/CartProvider";
+import { useAuth } from "@/components/providers/AuthProvider";
 
 const POSTAL_MODAL_DISMISSED_KEY = "ahorramas_postal_modal_dismissed";
 
@@ -31,10 +32,7 @@ export default function Navbar() {
     const [isNavbarSearching, setIsNavbarSearching] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [postalModalOpen, setPostalModalOpen] = useState(false);
-    const [postalModalDismissedForSession, setPostalModalDismissedForSession] = useState(() => {
-        if (typeof window === "undefined") return true; // Always dismissed on server to prevent hydration mismatch
-        return window.sessionStorage.getItem(POSTAL_MODAL_DISMISSED_KEY) === "1";
-    });
+    const [postalModalDismissedForSession, setPostalModalDismissedForSession] = useState(true);
 
     const {
         postalCode,
@@ -45,7 +43,24 @@ export default function Navbar() {
         clearPostalCode,
     } = useLocation();
 
-    const { totalItems, openCart } = useCart();
+    const { totalItems, openCart, clearCart } = useCart();
+    const { user } = useAuth();
+
+    function handleAccountClick() {
+        if (!user) {
+            router.push(`/auth/login?redirect=/cuenta`);
+        } else {
+            router.push("/cuenta");
+        }
+    }
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+
+        setPostalModalDismissedForSession(
+            window.sessionStorage.getItem(POSTAL_MODAL_DISMISSED_KEY) === "1",
+        );
+    }, []);
 
     const [postalCodeInput, setPostalCodeInput] = useState(postalCode);
     const [postalCodeMessage, setPostalCodeMessage] = useState("");
@@ -173,8 +188,17 @@ export default function Navbar() {
 
     function handlePostalCodeClear() {
         clearPostalCode();
+
+        if (!user) {
+            clearCart();
+        }
+
         setPostalCodeInput("");
-        setPostalCodeMessage("Código Postal eliminado.");
+        setPostalCodeMessage(
+            user
+                ? "Código Postal eliminado. Los precios de tu carrito se ocultarán hasta que ingreses una zona nuevamente."
+                : "Código Postal eliminado. El carrito se vació porque los precios dependen de tu zona.",
+        );
         setPendingAmbiguousRegions([]);
         setPostalModalDismissedForSession(false);
         clearPostalModalDismissal();
@@ -274,7 +298,7 @@ export default function Navbar() {
                                     </span>
                                 )}
                             </button>
-                            <button className="flex lg:flex-row sm:flex-col items-center gap-1 sm:text-sm font-semibold text-[#626264] hover:text-[#CE2C3C] transition">
+                            <button onClick={handleAccountClick} className="flex lg:flex-row sm:flex-col items-center gap-1 sm:text-sm font-semibold text-[#626264] hover:text-[#CE2C3C] transition">
                                 <User className="w-4 h-4 text-zinc-800" />
                                 <span className="text-[10px] sm:text-xs">Cuenta</span>
                             </button>
@@ -328,7 +352,7 @@ export default function Navbar() {
                                     </span>
                                 )}
                             </button>
-                            <button className="flex-col items-center gap-1 text-sm font-semibold text-[#626264] hover:text-[#CE2C3C] transition">
+                            <button onClick={handleAccountClick} className="flex-col items-center gap-1 text-sm font-semibold text-[#626264] hover:text-[#CE2C3C] transition">
                                 <User className="w-4 h-4 text-zinc-800 justify-self-center" />
                                 <span className="text-xs">Cuenta</span>
                             </button>
