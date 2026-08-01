@@ -14,6 +14,7 @@ import {
     Tv,
 } from "lucide-react";
 import { useLocation } from "@/components/providers/LocationProvider";
+import { useCart } from "@/components/providers/CartProvider";
 import { getActivePrices } from "@/lib/pricing";
 
 const STRAPI_URL = process.env.NEXT_PUBLIC_STRAPI_URL;
@@ -233,6 +234,56 @@ function WhatsAppIcon({ className }: { className?: string }) {
     );
 }
 
+function getCategoryNote(categoria: string): { title: string; message: string } {
+    const normalized = categoria.toUpperCase();
+
+    if (normalized.includes("SALA")) {
+        return {
+            title: "¿No quieres el set completo?",
+            message:
+                'Puedes cambiar el número de sillones del set. Solo haz click en el botón "Personalizar por WhatsApp" para ser atendido por un asesor de sucursal.',
+        };
+    }
+
+    if (normalized.includes("RECAMARA")) {
+        return {
+            title: "¿Necesitas otra medida de cama?",
+            message:
+                'Podemos ajustar la cabecera o los burós a la medida de tu recámara. Haz click en "Personalizar por WhatsApp" para hablar con un asesor de sucursal.',
+        };
+    }
+
+    if (normalized.includes("COMEDOR")) {
+        return {
+            title: "¿Tu comedor necesita más sillas?",
+            message:
+                'Podemos cambiar el número de sillas o la medida de la mesa. Haz click en "Personalizar por WhatsApp" para ser atendido por un asesor de sucursal.',
+        };
+    }
+
+    if (normalized.includes("COLCHON")) {
+        return {
+            title: "¿No estás seguro de la firmeza?",
+            message:
+                'Un asesor puede recomendarte el colchón ideal para tu descanso. Haz click en "Personalizar por WhatsApp" para recibir asesoría personalizada.',
+        };
+    }
+
+    if (normalized.includes("TV")) {
+        return {
+            title: "¿Tu pantalla tiene otra medida?",
+            message:
+                'Podemos ajustar el mueble al tamaño de tu TV. Haz click en "Personalizar por WhatsApp" para ser atendido por un asesor de sucursal.',
+        };
+    }
+
+    return {
+        title: "¿Necesitas una medida especial?",
+        message:
+            'Podemos personalizar este mueble a tus necesidades. Haz click en "Personalizar por WhatsApp" para ser atendido por un asesor de sucursal.',
+    };
+}
+
 
 export default function ProductDetailPage() {
     const params = useParams<{ id: string }>();
@@ -246,6 +297,7 @@ export default function ProductDetailPage() {
     const [quantity, setQuantity] = useState(1);
     const [specsOpen, setSpecsOpen] = useState(true);
     const { region, hasValidPostalCode } = useLocation();
+    const { addItem, openCart } = useCart();
 
     useEffect(() => {
         let ignore = false;
@@ -366,6 +418,7 @@ export default function ProductDetailPage() {
         .map((variant) => getStrapiMedia(variant.imagen))
         .filter((image): image is string => Boolean(image));
     const thumbnails = Array.from(new Set([...galleryImages, ...variantImages])).slice(0, 5);
+    const categoryNote = getCategoryNote(product.categoria);
 
 
     return (
@@ -459,11 +512,13 @@ export default function ProductDetailPage() {
                     </div>
 
                     <div>
-                        <div className="mb-3">
-                            <span className="inline-flex rounded-full bg-[#fde8eb] px-4 py-1.5 text-[11px] font-extrabold uppercase tracking-wide text-[#d12d3d]">
-                                {product.badge_oferta || product.tipo_oferta || "Oferta especial"}
-                            </span>
-                        </div>
+                        {product.tipo_oferta && (
+                            <div className="mb-3">
+                                <span className="inline-flex rounded-full bg-[#fde8eb] px-4 py-1.5 text-[11px] font-extrabold uppercase tracking-wide text-[#d12d3d]">
+                                    {product.tipo_oferta}
+                                </span>
+                            </div>
+                        )}
 
                         <h1 className="text-4xl font-black tracking-normal text-zinc-950 md:text-5xl">
                             {product.nombre}
@@ -554,9 +609,8 @@ export default function ProductDetailPage() {
                         )}
 
                         <div className="mt-4 rounded-3xl border border-[#f6dd64] bg-[#fff7b8] px-5 py-4 text-sm leading-7 text-[#8a5d00]">
-                            <strong className="block text-[#6d4300]">¿No quieres el set completo?</strong>
-                            Puedes cambiar el número de sillones del set. Solo haz click en el botón
-                            &quot;Personalizar por WhatsApp&quot; para ser atendido por un asesor de sucursal.
+                            <strong className="block text-[#6d4300]">{categoryNote.title}</strong>
+                            {categoryNote.message}
                         </div>
 
                         <div className="mt-4 grid gap-3 sm:grid-cols-[190px_1fr]">
@@ -586,7 +640,27 @@ export default function ProductDetailPage() {
                             <button
                                 type="button"
                                 className="flex h-12 items-center justify-center gap-2 rounded-lg bg-[#d12d3d] px-5 text-base font-extrabold text-white shadow-sm transition hover:bg-[#b72432]"
-                                onClick={() => alert("Producto añadido al carrito")}
+                                onClick={() => {
+                                    if (!region || !prices) {
+                                        alert("Ingresa tu Código Postal para poder añadir productos al carrito.");
+                                        return;
+                                    }
+
+                                    addItem({
+                                        productId: product.id,
+                                        nombre: product.nombre,
+                                        codigoProducto: product.codigo_producto || product.id,
+                                        categoria: product.categoria,
+                                        imagen: mainImage,
+                                        precioLista: prices.lista,
+                                        precioOferta: prices.oferta,
+                                        region,
+                                        baseTela: selectedBaseTela,
+                                        frenteTela: selectedFrenteTela,
+                                        cantidad: quantity,
+                                    });
+                                    openCart();
+                                }}
                             >
                                 <ShoppingCart className="h-5 w-5" />
                                 Añadir al carrito

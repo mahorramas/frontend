@@ -6,6 +6,8 @@ import TrustBar from "@/components/layout/TrustBar";
 import Newsletter from "@/components/layout/Newsletter";
 import Footer from "@/components/layout/Footer";
 import { LocationProvider } from "@/components/providers/LocationProvider";
+import { CartProvider } from "@/components/providers/CartProvider";
+import CartDrawer from "@/components/cart/CartDrawer";
 import "../styles/tailwind.css";
 import "../styles/index.css";
 
@@ -36,20 +38,24 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      data-scroll-behavior="smooth"
       className={`h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
 <Suspense fallback={<div>Cargando...</div>}>
-        <LocationProvider>
-          <TopPromoBar />
-          <Navbar />
+          <CartProvider>
+            <LocationProvider>
+              <TopPromoBar />
+              <Navbar />
 
-          {children}
+              {children}
 
-          <TrustBar />
-          <Newsletter />
-          <Footer />
-        </LocationProvider>
+              <CartDrawer />
+              <TrustBar />
+              <Newsletter />
+              <Footer />
+            </LocationProvider>
+          </CartProvider>
 </Suspense>
       </body>
     </html>

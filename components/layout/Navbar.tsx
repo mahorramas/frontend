@@ -12,6 +12,7 @@ import {
 } from "@/lib/categoryNavigation";
 import { normalizePostalCode, type Region } from "@/lib/location";
 import { useLocation } from "@/components/providers/LocationProvider";
+import { useCart } from "@/components/providers/CartProvider";
 
 const POSTAL_MODAL_DISMISSED_KEY = "ahorramas_postal_modal_dismissed";
 
@@ -43,6 +44,8 @@ export default function Navbar() {
         setPostalCode,
         clearPostalCode,
     } = useLocation();
+
+    const { totalItems, openCart } = useCart();
 
     const [postalCodeInput, setPostalCodeInput] = useState(postalCode);
     const [postalCodeMessage, setPostalCodeMessage] = useState("");
@@ -257,9 +260,19 @@ export default function Navbar() {
 
                     <div className="hidden lg:flex-row md:flex flex-col  items-center gap-3">
                         <div className="sm:hidden md:flex items-center gap-3">
-                            <button className="flex lg:flex-row sm:flex-col items-center gap-1 sm:text-sm font-semibold text-[#626264] hover:text-[#CE2C3C] transition">
+                            <button
+                                type="button"
+                                onClick={openCart}
+                                className="relative flex lg:flex-row sm:flex-col items-center gap-1 sm:text-sm font-semibold text-[#626264] hover:text-[#CE2C3C] transition"
+                                aria-label="Abrir carrito"
+                            >
                                 <ShoppingCart className="w-4 h-4  text-zinc-800" />
                                 <span className="text-[10px] sm:text-xs">Carrito</span>
+                                {totalItems > 0 && (
+                                    <span className="absolute -top-1 -right-1 grid h-4 min-w-4 place-items-center rounded-full bg-[#CE2C3C] px-1 text-[10px] font-black text-white">
+                                        {totalItems}
+                                    </span>
+                                )}
                             </button>
                             <button className="flex lg:flex-row sm:flex-col items-center gap-1 sm:text-sm font-semibold text-[#626264] hover:text-[#CE2C3C] transition">
                                 <User className="w-4 h-4 text-zinc-800" />
@@ -301,9 +314,19 @@ export default function Navbar() {
                             </p>
                         )}
                         <div className="flex items-center gap-3 ">
-                            <button className="flex-col items-center  gap-1 text-sm font-semibold text-[#626264] hover:text-[#CE2C3C] transition">
+                            <button
+                                type="button"
+                                onClick={openCart}
+                                className="relative flex-col items-center gap-1 text-sm font-semibold text-[#626264] hover:text-[#CE2C3C] transition"
+                                aria-label="Abrir carrito"
+                            >
                                 <ShoppingCart className="w-4 h-4 text-zinc-800 justify-self-center" />
                                 <span className="text-xs">Carrito</span>
+                                {totalItems > 0 && (
+                                    <span className="absolute -top-1 right-0 grid h-4 min-w-4 place-items-center rounded-full bg-[#CE2C3C] px-1 text-[10px] font-black text-white">
+                                        {totalItems}
+                                    </span>
+                                )}
                             </button>
                             <button className="flex-col items-center gap-1 text-sm font-semibold text-[#626264] hover:text-[#CE2C3C] transition">
                                 <User className="w-4 h-4 text-zinc-800 justify-self-center" />
